@@ -1,11 +1,4 @@
-TARGETS = x86_64-apple-darwin x86_64-unknown-linux-gnu x86_64-pc-windows-gnu
-
-.PHONY: all
-all:  .check_rust .check_cross $(TARGETS)
-
-.PHONY: $(TARGETS)
-$(TARGETS):
-	cross build --target $@ --release
+TARGETS = x86_64-apple-darwin aarch64-apple-darwin x86_64-unknown-linux-gnu x86_64-pc-windows-gnu
 
 .PHONY: clean
 clean:
@@ -36,3 +29,10 @@ install_rust:
 .install_cross:
 	@echo "Installing Cross..."
 	@cargo install cross --git https://github.com/cross-rs/cross
+
+.PHONY: all
+all: .check_rust .check_cross $(TARGETS)
+
+.PHONY: $(TARGETS)
+$(TARGETS):
+	cross build --target $@ --release

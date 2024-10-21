@@ -10,5 +10,5 @@ scraper = "0.20.0"
 serde_json = "1.0.132"
 tokio = { version = "1", features = ["full"] }
 
-[workspace.metadata.cross.target.x86_64-apple-darwin]
+[workspace.metadata.cross.target.all]
 image = "zeyanlin/ip_rs:v0.1.0"
