@@ -24,6 +24,22 @@ struct Args {
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
     let args = Args::parse();
+
+    // get content
+    let content = match do_request(args.url.as_deref()).await {
+        Ok(content) => content,
+        Err(err) => {
+            return Err(err);
+        }
+    };
+
+    // process content
+    process_content(&content, args)?;
+    Ok(())
+}
+
+// do_request
+async fn do_request(url: Option<&str>) -> Result<String, Box<dyn Error>> {
     // create client
     let client = reqwest::Client::builder()
         .use_rustls_tls()
@@ -36,38 +52,43 @@ async fn main() -> Result<(), Box<dyn Error>> {
     headers.insert(CONTENT_TYPE, HeaderValue::from_static("application/json"));
 
     // send request
-    let response = client
-        .get(args.url.unwrap())
-        .headers(headers)
-        .send()
-        .await?;
+    let response = client.get(url.unwrap()).headers(headers).send().await?;
 
+    // check status code
     if response.status() != reqwest::StatusCode::OK {
         println!("http error: {}", response.status());
         return Err(format!("Unexpected HTTP code: {}", response.status()).into());
     }
+    // return response body as string
+    Ok(response.text().await?)
+}
 
-    let content = response.text().await?;
-
-    match serde_json::from_str::<Value>(&content) {
+// process_content
+fn process_content(content: &str, args: Args) -> Result<(), Box<dyn Error>> {
+    let field = args.field.as_deref();
+    let full = args.full.unwrap();
+    match serde_json::from_str::<Value>(content) {
         Ok(json) => {
-            if args.full.unwrap() {
+            if full {
                 println!("{}", to_string_pretty(&json)?);
             } else {
-                match json.get(args.field.unwrap()) {
-                    Some(value) => {
-                        if let Some(ip_str) = value.as_str() {
-                            println!("{}", ip_str);
-                        } else {
-                            println!("{}", value);
+                match field {
+                    Some(f) => match json.get(f) {
+                        Some(value) => {
+                            if let Some(ip_str) = value.as_str() {
+                                println!("{}", ip_str);
+                            } else {
+                                println!("{}", value);
+                            }
                         }
-                    }
+                        None => println!("{}", to_string_pretty(&json)?),
+                    },
                     None => println!("{}", to_string_pretty(&json)?),
                 }
             }
         }
         Err(_) => {
-            let fragment = Html::parse_document(&content);
+            let fragment = Html::parse_document(content);
             let body_selector = Selector::parse("body").unwrap();
 
             let body_content = fragment
@@ -80,6 +101,5 @@ async fn main() -> Result<(), Box<dyn Error>> {
             println!("{}", body_content);
         }
     }
-
     Ok(())
 }
