@@ -103,3 +103,78 @@ fn process_content(content: &str, args: Args) -> Result<(), Box<dyn Error>> {
     }
     Ok(())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use httpmock::Method::GET;
+    use httpmock::MockServer;
+    use once_cell::sync::Lazy;
+
+    static SERVER: Lazy<MockServer> = Lazy::new(MockServer::start);
+
+    #[tokio::test]
+    async fn test_do_request_success() {
+        let mock = SERVER.mock(|when, then| {
+            when.method(GET).path("/test");
+            then.status(200)
+                .header("content-type", "application/json")
+                .body(r#"{"IP": "127.0.0.1"}"#);
+        });
+        // 測試 do_request 函數
+        let result = do_request(Some(&SERVER.url("/test"))).await;
+
+        // 驗證結果
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap(), r#"{"IP": "127.0.0.1"}"#);
+
+        // 驗證 mock 是否被調用
+        mock.assert();
+    }
+
+    #[tokio::test]
+    async fn test_do_request_failure() {
+        let mock = SERVER.mock(|when, then| {
+            when.method(GET).path("/not_found");
+            then.status(404);
+        });
+        // 測試 do_request 函數
+        let result = do_request(Some(&SERVER.url("/not_found"))).await;
+
+        // 驗證結果應該是錯誤
+        assert!(result.is_err());
+
+        // 驗證 mock 是否被調用
+        mock.assert();
+    }
+
+    #[test]
+    fn test_process_content_with_json() {
+        // 測試 JSON 資料的處理
+        let content = r#"{"IP": "127.0.0.1"}"#;
+        let args = Args {
+            url: None,
+            full: Some(false),
+            field: Some("IP".to_string()),
+        };
+        let result = process_content(content, args);
+
+        // 測試應該成功並顯示 IP
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_process_content_with_html() {
+        // 測試 HTML 資料的處理
+        let content = r#"<html><body>Test Content</body></html>"#;
+        let args = Args {
+            url: None,
+            full: Some(false),
+            field: None,
+        };
+        let result = process_content(content, args);
+
+        // 測試應該成功並顯示 HTML <body> 中的文本
+        assert!(result.is_ok());
+    }
+}
